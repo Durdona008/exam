@@ -11,6 +11,14 @@ import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../users/user.entity';
 import { LoginDto, CreateAdminDto } from './dto/auth.dto';
 
+export interface OAuthUserDto {
+  provider: 'google' | 'github';
+  providerId: string;
+  fullName: string;
+  email?: string;
+  photo?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -34,6 +42,44 @@ export class AuthService {
       throw new UnauthorizedException('Telefon raqam yoki parol noto\'g\'ri');
     }
 
+    return this.generateTokenResponse(user);
+  }
+
+  // Google / GitHub OAuth orqali kirish
+  async validateOAuthUser(dto: OAuthUserDto) {
+    const field = dto.provider === 'google' ? 'googleId' : 'githubId';
+
+    // Avval providerId bo'yicha qidirish
+    let user = await this.userRepo.findOne({ where: { [field]: dto.providerId } });
+
+    // Agar topilmasa, email bo'yicha qidirish
+    if (!user && dto.email) {
+      user = await this.userRepo.findOne({ where: { email: dto.email } });
+      if (user) {
+        // Email mavjud — providerId bog'lash
+        user[field] = dto.providerId;
+        await this.userRepo.save(user);
+      }
+    }
+
+    // Yangi foydalanuvchi yaratish
+    if (!user) {
+      user = this.userRepo.create({
+        fullName: dto.fullName,
+        email: dto.email,
+        [field]: dto.providerId,
+        photo: dto.photo,
+        role: UserRole.ADMIN,
+        isActive: true,
+      });
+      await this.userRepo.save(user);
+    }
+
+    return user;
+  }
+
+  // OAuth callback — JWT token qaytarish
+  generateTokenResponse(user: User) {
     const payload = { sub: user.id, phone: user.phone, role: user.role };
     const token = this.jwtService.sign(payload);
 
@@ -43,7 +89,9 @@ export class AuthService {
         id: user.id,
         fullName: user.fullName,
         phone: user.phone,
+        email: user.email,
         role: user.role,
+        photo: user.photo,
       },
     };
   }
@@ -84,6 +132,7 @@ export class AuthService {
         'user.id',
         'user.fullName',
         'user.phone',
+        'user.email',
         'user.role',
         'user.isActive',
         'user.createdAt',
@@ -107,7 +156,7 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      select: ['id', 'fullName', 'phone', 'role', 'photo', 'isActive', 'createdAt'],
+      select: ['id', 'fullName', 'phone', 'email', 'role', 'photo', 'isActive', 'createdAt'],
     });
     if (!user) throw new NotFoundException('Foydalanuvchi topilmadi');
     return user;

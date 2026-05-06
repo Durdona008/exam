@@ -4,7 +4,6 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -24,12 +23,22 @@ export class User {
   @ApiProperty({ example: 'Muxamadaliyev Ibrohim' })
   fullName: string;
 
-  @Column({ unique: true })
-  @ApiProperty({ example: '+998901234567' })
+  @Column({ unique: true, nullable: true })
+  @ApiProperty({ example: '+998901234567', required: false })
   phone: string;
 
-  @Column()
+  @Column({ nullable: true })
   passwordHash: string;
+
+  @Column({ unique: true, nullable: true })
+  @ApiProperty({ example: 'user@gmail.com', required: false })
+  email: string;
+
+  @Column({ nullable: true })
+  googleId: string;
+
+  @Column({ nullable: true })
+  githubId: string;
 
   @Column({
     type: 'enum',

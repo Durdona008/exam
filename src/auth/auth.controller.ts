@@ -6,6 +6,8 @@ import {
   Param,
   Delete,
   UseGuards,
+  Req,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,7 +15,9 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { LoginDto, CreateAdminDto, LoginResponseDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,12 +26,17 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/user.entity';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GithubAuthGuard } from './guards/github-auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('login')
   @Public()
@@ -41,12 +50,63 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  // ─── Google OAuth ─────────────────────────────────────────────
+  @Get('google')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({
+    summary: 'Google orqali kirish',
+    description: 'Google OAuth2 sahifasiga yo\'naltiradi.',
+  })
+  @ApiResponse({ status: 302, description: 'Google login sahifasiga redirect' })
+  googleLogin() {
+    // Passport redirect qiladi
+  }
+
+  @Get('google/callback')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiExcludeEndpoint()
+  googleCallback(@Req() req: any, @Res() res: any) {
+    const result = this.authService.generateTokenResponse(req.user);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3001');
+    return res.redirect(
+      `${frontendUrl}/auth/callback?token=${result.token}&user=${encodeURIComponent(JSON.stringify(result.user))}`,
+    );
+  }
+
+  // ─── GitHub OAuth ─────────────────────────────────────────────
+  @Get('github')
+  @Public()
+  @UseGuards(GithubAuthGuard)
+  @ApiOperation({
+    summary: 'GitHub orqali kirish',
+    description: 'GitHub OAuth2 sahifasiga yo\'naltiradi.',
+  })
+  @ApiResponse({ status: 302, description: 'GitHub login sahifasiga redirect' })
+  githubLogin() {
+    // Passport redirect qiladi
+  }
+
+  @Get('github/callback')
+  @Public()
+  @UseGuards(GithubAuthGuard)
+  @ApiExcludeEndpoint()
+  githubCallback(@Req() req: any, @Res() res: any) {
+    const result = this.authService.generateTokenResponse(req.user);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3001');
+    return res.redirect(
+      `${frontendUrl}/auth/callback?token=${result.token}&user=${encodeURIComponent(JSON.stringify(result.user))}`,
+    );
+  }
+
+  // ─── User management ──────────────────────────────────────────
   @Post('users')
   @Roles(UserRole.SUPERADMIN)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Yangi admin/teacher yaratish',
-    description: 'Faqat **SuperAdmin** bajarishi mumkin. Admin yoki Teacher rolini tayinlaydi.',
+    description: 'Faqat **SuperAdmin** bajarishi mumkin.',
   })
   @ApiResponse({ status: 201, description: 'Foydalanuvchi yaratildi' })
   @ApiResponse({ status: 403, description: 'Ruxsat yo\'q' })
@@ -58,10 +118,7 @@ export class AuthController {
   @Get('users')
   @Roles(UserRole.SUPERADMIN)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({
-    summary: 'Barcha admin va o\'qituvchilar ro\'yxati',
-    description: 'Faqat **SuperAdmin** ko\'ra oladi.',
-  })
+  @ApiOperation({ summary: 'Barcha admin va o\'qituvchilar ro\'yxati' })
   @ApiResponse({ status: 200, description: 'Ro\'yxat' })
   getAllUsers() {
     return this.authService.getAllUsers();

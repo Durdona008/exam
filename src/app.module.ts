@@ -12,13 +12,11 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    // .env faylni global yuklash
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
 
-    // TypeORM — PostgreSQL konfiguratsiyasi
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -28,12 +26,12 @@ import { UsersModule } from './users/users.module';
         username: configService.get<string>('DB_USERNAME', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'password'),
         database: configService.get<string>('DB_DATABASE', 'crm_db'),
-        // Barcha entitylarni avtomatik topish
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        // Development da true, productda false qiling!
+        migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
+        // Production da synchronize=false, migration ishlatiladi
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        migrationsRun: configService.get<string>('NODE_ENV') === 'production',
         logging: configService.get<string>('NODE_ENV') === 'development',
-        // Connection pool
         extra: {
           max: 10,
           connectionTimeoutMillis: 2000,
@@ -42,7 +40,6 @@ import { UsersModule } from './users/users.module';
       inject: [ConfigService],
     }),
 
-    // Feature modullar
     AuthModule,
     UsersModule,
     StudentsModule,
